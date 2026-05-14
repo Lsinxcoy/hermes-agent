@@ -423,6 +423,23 @@ def build_skill_invocation_message(
     if not skill_info:
         return None
 
+    # ── PRM Router: check SkillClaw effectiveness before loading ───────────
+    # Non-invasive: logs warnings for low-effectiveness skills but proceeds
+    # if the user explicitly invoked the command.
+    try:
+        from agent.skill_prm_router import get_prm_router
+        skill_name_raw = skill_info.get("name", cmd_key.lstrip("/"))
+        verdict = get_prm_router().get_prm_verdict(skill_name_raw)
+        if verdict and verdict["verdict"] == "avoid":
+            import logging as _log
+            _log.getLogger("hermes.skill_prm").warning(
+                f"PRM: skill '{skill_name_raw}' eff={verdict['effectiveness']:.2f} — "
+                f"consider alternatives: {verdict.get('alternative', {}).get('name', 'N/A')}"
+            )
+    except Exception:
+        pass  # PRM routing is non-critical
+    # ── End PRM Router ────────────────────────────────────────────────────
+
     loaded = _load_skill_payload(skill_info["skill_dir"], task_id=task_id)
     if not loaded:
         return f"[Failed to load skill: {skill_info['name']}]"
